@@ -336,7 +336,7 @@
   // QantasLink ICAO callsign for QF2484 is QFA2484
   const CALLSIGN = 'QFA2484';
   const OPENSKY_BASE = `https://opensky-network.org/api/states/all?callsign=${CALLSIGN}`;
-  const OPENSKY_URL = `https://corsproxy.io/?${encodeURIComponent(OPENSKY_BASE)}`;
+  const OPENSKY_URL = `https://api.allorigins.win/raw?url=${encodeURIComponent(OPENSKY_BASE)}`;
 
   function mpsToKnots(mps) { return mps != null ? Math.round(mps * 1.94384) : null; }
   function mToFt(m)        { return m   != null ? Math.round(m * 3.28084)   : null; }
