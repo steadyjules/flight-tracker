@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QF2484 – Meet &amp; Greet</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f1923;
+      color: #e0e6ed;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 16px;
+    }
+
+    h1 {
+      font-size: 15px;
+      color: #5a7a9a;
+      font-weight: 500;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .flight-id {
+      font-size: 32px;
+      font-weight: 700;
+      color: #e8b84b;
+      letter-spacing: 2px;
+    }
+
+    .route {
+      font-size: 13px;
+      color: #5a7a9a;
+      margin-top: 2px;
+    }
+
+    /* Settings row */
+    .settings {
+      background: #1a2635;
+      border: 1px solid #2a3a4a;
+      border-radius: 12px;
+      padding: 16px;
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .settings h2 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #5a7a9a;
+    }
+
+    .field {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .field label {
+      font-size: 13px;
+      color: #a0b0c0;
+      white-space: nowrap;
+    }
+
+    .field input {
+      background: #0f1923;
+      border: 1px solid #2a3a4a;
+      border-radius: 8px;
+      color: #e0e6ed;
+      font-size: 15px;
+      padding: 6px 10px;
+      text-align: right;
+      width: 120px;
+    }
+
+    .field input:focus {
+      outline: none;
+      border-color: #e8b84b;
+    }
+
+    /* Big countdown cards */
+    .cards {
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card {
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .card.landing {
+      background: #1a2a1a;
+      border: 1px solid #2a4a2a;
+    }
+
+    .card.leave {
+      background: #2a1a0a;
+      border: 1px solid #4a3a1a;
+    }
+
+    .card.leave.urgent {
+      background: #3a0a0a;
+      border-color: #6a2a2a;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { border-color: #6a2a2a; }
+      50%       { border-color: #d97a7a; }
+    }
+
+    .card-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .landing .card-label { color: #4a8a4a; }
+    .leave   .card-label { color: #8a6a2a; }
+    .leave.urgent .card-label { color: #9a4a4a; }
+
+    .countdown {
+      font-size: 52px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -1px;
+    }
+
+    .landing .countdown { color: #4cd97a; }
+    .leave   .countdown { color: #e8b84b; }
+    .leave.urgent .countdown { color: #d97a7a; }
+
+    .card-sub {
+      font-size: 13px;
+      margin-top: 6px;
+    }
+
+    .landing .card-sub { color: #4a8a4a; }
+    .leave   .card-sub { color: #6a5a2a; }
+    .leave.urgent .card-sub { color: #7a3a3a; }
+
+    .landed-msg {
+      font-size: 18px;
+      font-weight: 600;
+      color: #4cd97a;
+      padding: 12px 0;
+    }
+
+    footer {
+      font-size: 11px;
+      color: #2a3a4a;
+      margin-top: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <div style="text-align:center">
+    <div class="flight-id">QF2484</div>
+    <div class="route">Cairns → Weipa</div>
+  </div>
+
+  <div class="settings">
+    <h2>Settings</h2>
+    <div class="field">
+      <label>Estimated arrival</label>
+      <input type="time" id="eta-input" value="18:57" />
+    </div>
+    <div class="field">
+      <label>Drive time to airport</label>
+      <input type="number" id="drive-input" value="10" min="0" max="120" />
+    </div>
+    <div style="font-size:11px;color:#3a5a7a">All times are local. Update ETA if the flight changes.</div>
+  </div>
+
+  <div class="cards">
+    <div class="card landing">
+      <div class="card-label">Lands in</div>
+      <div class="countdown" id="land-countdown">--:--</div>
+      <div class="card-sub" id="land-time"></div>
+    </div>
+
+    <div class="card leave" id="leave-card">
+      <div class="card-label" id="leave-label">Leave in</div>
+      <div class="countdown" id="leave-countdown">--:--</div>
+      <div class="card-sub" id="leave-time"></div>
+    </div>
+  </div>
+
+  <footer>Updates every second &nbsp;·&nbsp; Times are device local time</footer>
+
+<script>
+  function getEtaDate() {
+    const val = document.getElementById('eta-input').value; // "HH:MM"
+    if (!val) return null;
+    const [h, m] = val.split(':').map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    // If the time is in the past by more than 2 hours, assume next day
+    if (d < Date.now() - 2 * 3600000) d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  function getLeaveDate() {
+    const eta = getEtaDate();
+    if (!eta) return null;
+    const drive = parseInt(document.getElementById('drive-input').value) || 0;
+    return new Date(eta.getTime() - drive * 60000);
+  }
+
+  function fmt(ms) {
+    if (ms <= 0) return '00:00';
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+
+  function fmtTime(date) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function tick() {
+    const now = Date.now();
+    const eta   = getEtaDate();
+    const leave = getLeaveDate();
+
+    if (!eta) return;
+
+    const msToLand  = eta   - now;
+    const msToLeave = leave - now;
+
+    // Landing card
+    if (msToLand <= 0) {
+      document.getElementById('land-countdown').textContent = '';
+      document.getElementById('land-countdown').insertAdjacentHTML('afterend',
+        '<div class="landed-msg" id="landed-txt">Landed ✓</div>');
+      document.getElementById('land-time').textContent = `Arrived ${fmtTime(eta)}`;
+      document.getElementById('land-countdown').style.display = 'none';
+    } else {
+      document.getElementById('land-countdown').textContent = fmt(msToLand);
+      document.getElementById('land-time').textContent = `ETA ${fmtTime(eta)}`;
+    }
+
+    // Leave card
+    const leaveCard = document.getElementById('leave-card');
+    if (msToLeave <= 0 && msToLand > 0) {
+      leaveCard.classList.add('urgent');
+      document.getElementById('leave-label').textContent = 'Leave NOW';
+      document.getElementById('leave-countdown').textContent = 'GO!';
+      document.getElementById('leave-time').textContent = `You should have left at ${fmtTime(leave)}`;
+    } else if (msToLand <= 0) {
+      document.getElementById('leave-label').textContent = 'Leave by';
+      document.getElementById('leave-countdown').textContent = '—';
+      document.getElementById('leave-time').textContent = 'Flight has landed';
+    } else {
+      leaveCard.classList.remove('urgent');
+      document.getElementById('leave-label').textContent = 'Leave in';
+      document.getElementById('leave-countdown').textContent = fmt(msToLeave);
+      document.getElementById('leave-time').textContent = `Leave by ${fmtTime(leave)}`;
+    }
+  }
+
+  document.getElementById('eta-input').addEventListener('change', tick);
+  document.getElementById('drive-input').addEventListener('input', tick);
+
+  tick();
+  setInterval(tick, 1000);
+</script>
+
+</body>
+</html>
