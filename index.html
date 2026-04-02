@@ -256,6 +256,32 @@
       </div>
     </div>
 
+    <div class="card" id="eta-card" style="display:none">
+      <h3>Arrival Estimate</h3>
+      <div class="stat-grid">
+        <div class="stat">
+          <label>ETA (local)</label>
+          <span class="value" id="eta-time" style="font-size:20px">—</span>
+        </div>
+        <div class="stat">
+          <label>Time Remaining</label>
+          <span class="value" id="eta-remaining" style="font-size:20px">—</span>
+        </div>
+        <div class="stat">
+          <label>Distance to WEI</label>
+          <span class="value" id="eta-dist">—</span><span class="unit">nm</span>
+        </div>
+        <div class="stat">
+          <label>Progress</label>
+          <span class="value" id="eta-progress">—</span><span class="unit">%</span>
+        </div>
+      </div>
+      <div style="margin-top:12px;background:#0a1520;border-radius:4px;height:6px;overflow:hidden">
+        <div id="progress-bar" style="height:100%;background:#4cd97a;width:0%;transition:width 1s"></div>
+      </div>
+      <div style="font-size:11px;color:#5a7a9a;margin-top:6px">Based on current speed &amp; position. Updates every 30s.</div>
+    </div>
+
     <div class="card">
       <h3>About this flight</h3>
       <div style="font-size:12px; color:#8a9bb0; line-height:1.6">
@@ -314,6 +340,42 @@
   function mpsToKnots(mps) { return mps != null ? Math.round(mps * 1.94384) : null; }
   function mToFt(m)        { return m   != null ? Math.round(m * 3.28084)   : null; }
   function mpsToFtMin(mps) { return mps != null ? Math.round(mps * 196.85)  : null; }
+
+  // Great-circle distance in nautical miles
+  function distNm(lat1, lon1, lat2, lon2) {
+    const R = 3440.065; // Earth radius in nm
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 +
+              Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+              Math.sin(dLon/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  const WEI = [-12.6786, 141.9253];
+  const CNS = [-16.8858, 145.7452];
+  const TOTAL_NM = distNm(CNS[0], CNS[1], WEI[0], WEI[1]);
+
+  function updateEta(lat, lon, spdKts) {
+    if (lat == null || lon == null || !spdKts || spdKts < 10) return;
+    const remaining = distNm(lat, lon, WEI[0], WEI[1]);
+    const flownNm   = distNm(CNS[0], CNS[1], lat, lon);
+    const progress  = Math.min(100, Math.round((flownNm / TOTAL_NM) * 100));
+    const etaMins   = Math.round((remaining / spdKts) * 60);
+    const etaDate   = new Date(Date.now() + etaMins * 60000);
+
+    const hm = etaDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const hrs = Math.floor(etaMins / 60);
+    const mins = etaMins % 60;
+    const remainingStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+
+    document.getElementById('eta-card').style.display = 'block';
+    document.getElementById('eta-time').textContent      = hm;
+    document.getElementById('eta-remaining').textContent = remainingStr;
+    document.getElementById('eta-dist').textContent      = Math.round(remaining);
+    document.getElementById('eta-progress').textContent  = progress;
+    document.getElementById('progress-bar').style.width  = progress + '%';
+  }
 
   function setStatus(text, cls) {
     const badge = document.getElementById('status-badge');
@@ -382,8 +444,10 @@
 
       if (onGround) {
         setStatus('On ground', 'landed');
+        document.getElementById('eta-card').style.display = 'none';
       } else {
         setStatus('In air', 'in_air');
+        updateEta(lat, lon, spdKts);
       }
 
       // Update map
