@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QF2484 Flight Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f1923;
+      color: #e0e6ed;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a2635;
+      border-bottom: 1px solid #2a3a4a;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    header .logo {
+      font-size: 22px;
+      font-weight: 700;
+      color: #e8b84b;
+      letter-spacing: 1px;
+    }
+
+    header .route {
+      font-size: 13px;
+      color: #8a9bb0;
+    }
+
+    header .status-badge {
+      margin-left: auto;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-in_air    { background: #1a4a2a; color: #4cd97a; }
+    .status-landed    { background: #1a3a4a; color: #4cb8d9; }
+    .status-scheduled { background: #3a3a1a; color: #d9c44c; }
+    .status-unknown   { background: #2a2a2a; color: #8a9bb0; }
+
+    #refresh-info {
+      font-size: 11px;
+      color: #5a6a7a;
+      margin-left: 12px;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      grid-template-rows: auto 1fr;
+      gap: 0;
+      height: calc(100vh - 61px);
+    }
+
+    .sidebar {
+      background: #1a2635;
+      border-right: 1px solid #2a3a4a;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    #map {
+      grid-row: 1 / 3;
+      grid-column: 2;
+    }
+
+    .card {
+      background: #0f1923;
+      border: 1px solid #2a3a4a;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .card h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #5a7a9a;
+      margin-bottom: 12px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .stat label {
+      display: block;
+      font-size: 11px;
+      color: #5a7a9a;
+      margin-bottom: 2px;
+    }
+
+    .stat .value {
+      font-size: 18px;
+      font-weight: 600;
+      color: #e0e6ed;
+    }
+
+    .stat .unit {
+      font-size: 11px;
+      color: #5a7a9a;
+      margin-left: 3px;
+    }
+
+    .airport-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .airport-box {
+      text-align: center;
+      flex: 1;
+    }
+
+    .airport-box .iata {
+      font-size: 28px;
+      font-weight: 700;
+      color: #e8b84b;
+      line-height: 1;
+    }
+
+    .airport-box .city {
+      font-size: 11px;
+      color: #5a7a9a;
+      margin-top: 4px;
+    }
+
+    .flight-line {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: #2a3a4a;
+    }
+
+    .flight-line .line {
+      flex: 1;
+      height: 1px;
+      background: #2a3a4a;
+    }
+
+    .flight-line .plane {
+      font-size: 18px;
+      color: #5a7a9a;
+    }
+
+    .error-msg {
+      background: #3a1a1a;
+      border: 1px solid #6a2a2a;
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 13px;
+      color: #d97a7a;
+      display: none;
+    }
+
+    .loading-msg {
+      text-align: center;
+      padding: 24px;
+      color: #5a7a9a;
+      font-size: 13px;
+    }
+
+    .last-seen {
+      font-size: 11px;
+      color: #5a7a9a;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">QF2484</div>
+    <div class="route">Cairns (CNS) → Weipa (WEI) · QantasLink</div>
+  </div>
+  <span id="status-badge" class="status-badge status-unknown">Loading…</span>
+  <span id="refresh-info"></span>
+</header>
+
+<div class="container">
+  <div class="sidebar">
+    <div id="error-msg" class="error-msg"></div>
+
+    <div class="card">
+      <h3>Route</h3>
+      <div class="airport-row">
+        <div class="airport-box">
+          <div class="iata">CNS</div>
+          <div class="city">Cairns</div>
+        </div>
+        <div class="flight-line">
+          <div class="line"></div>
+          <div class="plane">✈</div>
+          <div class="line"></div>
+        </div>
+        <div class="airport-box">
+          <div class="iata">WEI</div>
+          <div class="city">Weipa</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="live-card">
+      <h3>Live Data</h3>
+      <div id="loading-msg" class="loading-msg">Fetching flight data…</div>
+      <div id="stats" style="display:none">
+        <div class="stat-grid">
+          <div class="stat">
+            <label>Altitude</label>
+            <span class="value" id="altitude">—</span><span class="unit">ft</span>
+          </div>
+          <div class="stat">
+            <label>Ground Speed</label>
+            <span class="value" id="speed">—</span><span class="unit">kts</span>
+          </div>
+          <div class="stat">
+            <label>Heading</label>
+            <span class="value" id="heading">—</span><span class="unit">°</span>
+          </div>
+          <div class="stat">
+            <label>Vertical Rate</label>
+            <span class="value" id="vrate">—</span><span class="unit">ft/min</span>
+          </div>
+          <div class="stat">
+            <label>Latitude</label>
+            <span class="value" id="lat" style="font-size:14px">—</span>
+          </div>
+          <div class="stat">
+            <label>Longitude</label>
+            <span class="value" id="lon" style="font-size:14px">—</span>
+          </div>
+        </div>
+        <div class="last-seen" id="last-seen"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>About this flight</h3>
+      <div style="font-size:12px; color:#8a9bb0; line-height:1.6">
+        <p>Flight <strong style="color:#e0e6ed">QF2484</strong> is operated by QantasLink between Cairns International (CNS) and Weipa (WEI) in Far North Queensland.</p>
+        <p style="margin-top:8px">Live data is sourced from the <strong style="color:#e0e6ed">OpenSky Network</strong> and refreshes every 30 seconds. Aircraft must be broadcasting ADS-B and within coverage to appear.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // --- Map setup ---
+  const map = L.map('map', { zoomControl: true }).setView([-14.5, 144.5], 7);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CARTO',
+    subdomains: 'abcd',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Airport markers
+  const airportIcon = L.divIcon({
+    html: '<div style="width:10px;height:10px;background:#e8b84b;border-radius:50%;border:2px solid #fff;"></div>',
+    iconSize: [10, 10], iconAnchor: [5, 5]
+  });
+
+  L.marker([-16.8858, 145.7452], { icon: airportIcon }).addTo(map)
+    .bindTooltip('Cairns (CNS)', { permanent: true, direction: 'right', className: 'airport-label' });
+
+  L.marker([-12.6786, 141.9253], { icon: airportIcon }).addTo(map)
+    .bindTooltip('Weipa (WEI)', { permanent: true, direction: 'right', className: 'airport-label' });
+
+  // Route line
+  L.polyline([[-16.8858, 145.7452], [-12.6786, 141.9253]], {
+    color: '#e8b84b', weight: 1, dashArray: '6 6', opacity: 0.4
+  }).addTo(map);
+
+  // Plane marker
+  const planeIcon = (heading) => L.divIcon({
+    html: `<div style="font-size:26px;transform:rotate(${heading}deg);line-height:1;filter:drop-shadow(0 0 4px #4cd97a)">✈</div>`,
+    iconSize: [30, 30], iconAnchor: [15, 15]
+  });
+
+  let planeMarker = null;
+  let trailCoords = [];
+  let trailLine = null;
+
+  // --- OpenSky fetch ---
+  // QantasLink ICAO callsign for QF2484 is QFA2484
+  const CALLSIGN = 'QFA2484';
+  const OPENSKY_URL = `https://opensky-network.org/api/states/all?callsign=${CALLSIGN}`;
+
+  function mpsToKnots(mps) { return mps != null ? Math.round(mps * 1.94384) : null; }
+  function mToFt(m)        { return m   != null ? Math.round(m * 3.28084)   : null; }
+  function mpsToFtMin(mps) { return mps != null ? Math.round(mps * 196.85)  : null; }
+
+  function setStatus(text, cls) {
+    const badge = document.getElementById('status-badge');
+    badge.textContent = text;
+    badge.className = 'status-badge status-' + cls;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function hideError() {
+    document.getElementById('error-msg').style.display = 'none';
+  }
+
+  async function fetchFlight() {
+    hideError();
+    try {
+      const resp = await fetch(OPENSKY_URL);
+      if (resp.status === 429) {
+        showError('Rate limited by OpenSky Network. Will retry in 30 seconds.');
+        setStatus('Rate limited', 'unknown');
+        return;
+      }
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+      const data = await resp.json();
+      const states = data.states;
+
+      if (!states || states.length === 0) {
+        setStatus('Not airborne', 'scheduled');
+        document.getElementById('loading-msg').textContent =
+          'Flight QF2484 is not currently tracked by OpenSky. It may not have departed yet, or ADS-B coverage may be limited near Weipa.';
+        document.getElementById('loading-msg').style.display = 'block';
+        document.getElementById('stats').style.display = 'none';
+        return;
+      }
+
+      // State vector fields: [icao24, callsign, origin_country, time_position,
+      //  last_contact, longitude, latitude, baro_altitude, on_ground,
+      //  velocity, true_track, vertical_rate, sensors, geo_altitude, ...]
+      const s = states[0];
+      const [icao24, callsign, , , lastContact, lon, lat, baroAlt, onGround,
+             velocity, heading, vRate] = s;
+
+      document.getElementById('loading-msg').style.display = 'none';
+      document.getElementById('stats').style.display = 'block';
+
+      const altFt   = mToFt(baroAlt);
+      const spdKts  = mpsToKnots(velocity);
+      const vRateFpm = mpsToFtMin(vRate);
+      const hdg     = heading != null ? Math.round(heading) : null;
+
+      document.getElementById('altitude').textContent = altFt   != null ? altFt.toLocaleString()   : '—';
+      document.getElementById('speed').textContent    = spdKts  != null ? spdKts.toLocaleString()  : '—';
+      document.getElementById('heading').textContent  = hdg     != null ? hdg                      : '—';
+      document.getElementById('vrate').textContent    = vRateFpm != null ? (vRateFpm > 0 ? '+' : '') + vRateFpm.toLocaleString() : '—';
+      document.getElementById('lat').textContent      = lat     != null ? lat.toFixed(4)            : '—';
+      document.getElementById('lon').textContent      = lon     != null ? lon.toFixed(4)            : '—';
+
+      const lastSeenDate = lastContact ? new Date(lastContact * 1000) : null;
+      document.getElementById('last-seen').textContent =
+        lastSeenDate ? `Last seen: ${lastSeenDate.toLocaleTimeString()}` : '';
+
+      if (onGround) {
+        setStatus('On ground', 'landed');
+      } else {
+        setStatus('In air', 'in_air');
+      }
+
+      // Update map
+      if (lat != null && lon != null) {
+        trailCoords.push([lat, lon]);
+        if (trailCoords.length > 200) trailCoords.shift();
+
+        if (trailLine) map.removeLayer(trailLine);
+        trailLine = L.polyline(trailCoords, { color: '#4cd97a', weight: 2, opacity: 0.6 }).addTo(map);
+
+        if (planeMarker) map.removeLayer(planeMarker);
+        planeMarker = L.marker([lat, lon], { icon: planeIcon(hdg || 0) })
+          .addTo(map)
+          .bindPopup(`<b>QF2484</b><br>${altFt?.toLocaleString() ?? '—'} ft · ${spdKts ?? '—'} kts`);
+
+        map.panTo([lat, lon]);
+      }
+
+      const now = new Date();
+      document.getElementById('refresh-info').textContent =
+        `Updated ${now.toLocaleTimeString()}`;
+
+    } catch (err) {
+      showError(`Could not fetch flight data: ${err.message}`);
+      setStatus('Error', 'unknown');
+    }
+  }
+
+  fetchFlight();
+  setInterval(fetchFlight, 30000);
+</script>
+
+<style>
+  .airport-label {
+    background: rgba(15,25,35,0.85) !important;
+    border: 1px solid #2a3a4a !important;
+    color: #e8b84b !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+  }
+</style>
+
+</body>
+</html>
